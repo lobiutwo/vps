@@ -1,4 +1,4 @@
-name: Windows VPS mit Pinggy (Final Fix)
+name: Windows VPS mit Pinggy (Firewall Fix)
 
 on:
   workflow_dispatch:
@@ -15,16 +15,21 @@ jobs:
         if (!(Test-Path "$env:USERPROFILE\.ssh")) { New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\.ssh" }
         ssh-keygen -t rsa -b 2048 -f "$env:USERPROFILE\.ssh\id_rsa" -N ""
 
-    # 2. Windows Remotedesktop aktivieren und Firewall öffnen
-    - name: 2. RDP auf Windows aktivieren
+    # 2. RDP aktivieren UND die Firewall komplett aufreißen
+    - name: 2. RDP aktivieren und Firewall zwingen
       run: |
+        # RDP in Registry erlauben
         Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
+        
+        # Bestehende Firewall-Regeln aktivieren
         Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+        
+        # Eine brandneue, eigene Regel erstellen, die Port 3389 fuer ALLES oeffnet
+        New-NetFirewallRule -DisplayName "RDP-Inbound-Erzwungen" -Direction Inbound -Action Allow -Protocol TCP -LocalPort 3389
 
-    # 3. Den Pinggy-Tunnel ganz normal starten (Jetzt korrigiert!)
+    # 3. Den Pinggy-Tunnel starten
     - name: 3. Pinggy RDP-Tunnel starten
       run: |
-        # Wir nutzen wieder den korrekten Hostnamen 'a.pinggy.io' auf Port 443
         Start-Process ssh -ArgumentList "-o StrictHostKeyChecking=no -p 443 -R 0:localhost:3389 rdp@a.pinggy.io" -RedirectStandardOutput "pinggy.log" -WindowStyle Hidden
         Start-Sleep -Seconds 15
 
