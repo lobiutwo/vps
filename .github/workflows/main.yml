@@ -1,12 +1,12 @@
-name: Windows VPS mit Pinggy (Bulletproof)
+name: Windows VPS mit Pinggy (Final Fix)
 
 on:
-  workflow_dispatch: # Erlaubt den manuellen Start per Klick auf GitHub
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: windows-latest
-    timeout-minutes: 360 # Hält die VPS bis zu 6 Stunden aktiv
+    timeout-minutes: 360
 
     steps:
     # 1. Verzeichnis erstellen und SSH-Key generieren
@@ -21,11 +21,11 @@ jobs:
         Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
         Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
 
-    # 3. Den Pinggy-Tunnel über Port 443 starten
+    # 3. Den Pinggy-Tunnel ganz normal starten (Jetzt korrigiert!)
     - name: 3. Pinggy RDP-Tunnel starten
       run: |
-        # Das .443 am Ende zwingt den Tunnel über den sicheren HTTPS-Port
-        Start-Process ssh -ArgumentList "-o StrictHostKeyChecking=no -p 443 -R 0:localhost:3389 rdp@a.pinggy.io.443" -RedirectStandardOutput "pinggy.log" -WindowStyle Hidden
+        # Wir nutzen wieder den korrekten Hostnamen 'a.pinggy.io' auf Port 443
+        Start-Process ssh -ArgumentList "-o StrictHostKeyChecking=no -p 443 -R 0:localhost:3389 rdp@a.pinggy.io" -RedirectStandardOutput "pinggy.log" -WindowStyle Hidden
         Start-Sleep -Seconds 15
 
     # 4. Die Verbindungsdaten direkt aus dem Log anzeigen
@@ -40,7 +40,7 @@ jobs:
         if ($port_line) {
             $port = ($port_line -split "Allocated port ")[1] -split " " | Select-Object -First 1
             Write-Host "Trage diese Adresse in die Microsoft RDP App ein:"
-            Write-Host "a.pinggy.io.443:$port"
+            Write-Host "a.pinggy.io:$port"
         } else {
             Write-Host "Zeige rohes Log zur manuellen Suche:"
             $log
