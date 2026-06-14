@@ -21,26 +21,17 @@ jobs:
       run: |
         ngrok config add-authtoken "$env:NGROK_AUTH"
 
-    # 3. Eine feste Konfiguration schreiben und den Tunnel starten
+    # 3. Den Tunnel starten und kurz warten
     - name: 3. ngrok Tunnel im Hintergrund starten
       run: |
-        # Startet den RDP-Tunnel sauber im Hintergrund
         Start-Process ngrok -ArgumentList "tcp 3389" -WindowStyle Hidden
-        # Wir geben ngrok jetzt 30 Sekunden Zeit, um die API im Hintergrund komplett zu starten!
-        Start-Sleep -Seconds 30
+        Start-Sleep -Seconds 20
 
-    # 4. Die Verbindungsdaten abfragen (Jetzt mit Sicherheitsnetz)
+    # 4. Die Verbindungsdaten abfragen und ausgeben
     - name: 4. Deine Verbindungsdaten anzeigen
       run: |
-        # Falls ngrok immer noch lädt, versuchen wir es bis zu 3 Mal im Abstand von 5 Sekunden
-        for ($i=0; $i -lt 3; $i++) {
-          try {
-            $ngrok_url = (Invoke-WebRequest -Uri "http://127.0.0.1:4040/api/tunnels" -UseBasicParsing -TimeoutSec 10 | ConvertFrom-Json).tunnels.public_url
-            if ($ngrok_url) { break }
-          } catch {
-            Start-Sleep -Seconds 5
-          }
-        }
+        # Wir holen die URL direkt live ab
+        $ngrok_url = (Invoke-WebRequest -Uri "http://127.0.0.1:4040/api/tunnels" -UseBasicParsing | ConvertFrom-Json).tunnels.public_url
         
         Write-Host "===================================================="
         Write-Host "DEIN TUNNEL IST BEREIT!"
@@ -48,13 +39,12 @@ jobs:
         Write-Host "$ngrok_url"
         Write-Host "===================================================="
 
-    # 5. Admin-Passwort für den Windows-Server festlegen
+    # 5. Admin-Passwort für den Windows-Server festlegen (Ohne das veraltete WMIC)
     - name: 5. Windows Admin-Passwort setzen
       run: |
         net user runneradmin "MeinSicheresPasswort123!"
-        cmd /c WMIC USERACCOUNT WHERE "Name='runneradmin'" SET PasswordExpires=FALSE
 
-    # 6. Endlosschleife
+    # 6. Endlosschleife hält den Server online
     - name: 6. Server aktiv halten (Loop)
       run: |
         Write-Host "Der Server läuft jetzt. Du kannst dich verbinden!"
