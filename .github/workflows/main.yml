@@ -1,4 +1,4 @@
-name: Windows VPS mit ngrok (Zuerst ngrok)
+name: Windows VPS mit Pinggy (Keine Kreditkarte noetig)
 
 on:
   workflow_dispatch:
@@ -9,53 +9,46 @@ jobs:
     timeout-minutes: 360
 
     steps:
-    # 1. ngrok über Chocolatey installieren
-    - name: 1. ngrok herunterladen und installieren
+    # 1. SSH-Key generieren (Pinggy braucht das zur Authentifizierung)
+    - name: 1. SSH Schlüssel generieren
       run: |
-        choco install ngrok -y
-        
-    # 2. ngrok authentifizieren
-    - name: 2. ngrok Token konfigurieren
-      env:
-        NGROK_AUTH: ${{ secrets.NGROK_AUTHTOKEN }}
-      run: |
-        ngrok config add-authtoken "$env:NGROK_AUTH"
+        ssh-keygen -t rsa -b 2048 -f "$env:USERPROFILE\.ssh\id_rsa" -N ""
 
-    # 3. Tunnel starten und die Adresse direkt in eine Logdatei schreiben lassen
-    - name: 3. ngrok Tunnel starten & Adresse sichern
+    # 2. Den Pinggy-Tunnel im Hintergrund starten
+    - name: 2. Pinggy RDP-Tunnel starten
       run: |
-        # Startet den RDP-Tunnel und schreibt alle Statusmeldungen direkt in 'ngrok.log'
-        Start-Process ngrok -ArgumentList "tcp 3389 --log=stdout" -RedirectStandardOutput "ngrok.log" -WindowStyle Hidden
-        # Gemütliche 15 Sekunden warten, damit ngrok die Verbindung aufbauen kann
-        Start-Sleep -Seconds 15
+        # Startet den Tunnel für Port 3389 (Windows RDP) über Pinggy und loggt in eine Datei
+        Start-Process ssh -ArgumentList "-o StrictHostKeyChecking=no -p 443 -R 0:localhost:3389 rdp@a.pinggy.io" -RedirectStandardOutput "pinggy.log" -WindowStyle Hidden
+        Start-Sleep -Seconds 10
 
-    # 4. Die Adresse direkt aus der Textdatei auslesen (Keine API-Abfrage mehr!)
-    - name: 4. Deine Verbindungsdaten anzeigen
+    # 3. Die Verbindungsdaten direkt aus dem Log anzeigen
+    - name: 3. Deine Verbindungsdaten anzeigen
       run: |
         Write-Host "===================================================="
         Write-Host "DEIN TUNNEL WIRD AUSGELESEN..."
+        Start-Sleep -Seconds 5
         
-        # Holt sich die Zeile mit der Adresse 'tcp://...' aus dem Log
-        $url = Get-Content ngrok.log | Select-String -Pattern "url=tcp://"
-        if ($url) {
-            # Schneidet den Text sauber zurecht, sodass nur die Adresse übrig bleibt
-            $clean_url = ($url -split "url=")[1]
+        # Holt sich die öffentliche Adresse von Pinggy aus der Logdatei
+        $pinggy_line = Get-Content pinggy.log | Select-String -Pattern "tcp://"
+        if ($pinggy_line) {
+            # Bereinigt den Text für die RDP-Adresse
+            $clean_url = ($pinggy_line -split "tcp://")[1] -split " " | Select-Object -First 1
             Write-Host "DEIN TUNNEL IST BEREIT!"
             Write-Host "Verbinde dich ueber RDP mit dieser Adresse:"
             Write-Host "$clean_url"
         } else {
-            Write-Host "Tunnel konnte nicht ausgelesen werden. Zeige rohes Log zur Fehlersuche:"
-            Get-Content ngrok.log
+            Write-Host "Tunnel-Adresse konnte nicht ausgelesen werden. Rohes Log:"
+            Get-Content pinggy.log
         }
         Write-Host "===================================================="
 
-    # 5. Admin-Passwort für den Windows-Server festlegen
-    - name: 5. Windows Admin-Passwort setzen
+    # 4. Admin-Passwort für den Windows-Server festlegen
+    - name: 4. Windows Admin-Passwort setzen
       run: |
         net user runneradmin "MeinSicheresPasswort123!"
 
-    # 6. Endlosschleife hält den Server online
-    - name: 6. Server aktiv halten (Loop)
+    # 5. Endlosschleife hält den Server online
+    - name: 5. Server aktiv halten (Loop)
       run: |
         Write-Host "Der Server läuft jetzt. Du kannst dich verbinden!"
         $count = 0
