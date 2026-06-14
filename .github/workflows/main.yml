@@ -1,4 +1,4 @@
-name: Windows VPS mit Zrok RDP (Direkter Download Fix)
+name: Windows VPS Finale RDP Fix
 
 on:
   workflow_dispatch:
@@ -9,62 +9,42 @@ jobs:
     timeout-minutes: 360
 
     steps:
-    # 1. RDP auf dem Windows-Server aktivieren & Firewall öffnen
-    - name: 1. RDP aktivieren
+    # 1. SSH-Key generieren
+    - name: 1. SSH Verzeichnis und Key erstellen
+      run: |
+        if (!(Test-Path "$env:USERPROFILE\.ssh")) { New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\.ssh" }
+        ssh-keygen -t rsa -b 2048 -f "$env:USERPROFILE\.ssh\id_rsa" -N ""
+
+    # 2. Windows Remotedesktop aktivieren
+    - name: 2. RDP aktivieren
       run: |
         Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
         Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
         New-NetFirewallRule -DisplayName "RDP-Inbound" -Direction Inbound -Action Allow -Protocol TCP -LocalPort 3389
 
-    # 2. Zrok direkt von GitHub laden und entpacken (Garantierter Fix!)
-    - name: 2. Zrok herunterladen
+    # 3. Pinggy RDP-Tunnel über den RICHTIGEN TCP-Server starten
+    - name: 3. Pinggy TCP Tunnel starten
       run: |
-        Invoke-WebRequest -Uri "https://github.com/openziti/zrok/releases/download/v0.4.42/zrok_0.4.42_windows_amd64.zip" -OutFile "zrok.zip"
-        Expand-Archive -Path "zrok.zip" -DestinationPath .
-
-    # 3. Zrok mit deinem Token aktivieren
-    - name: 3. Zrok authentifizieren
-      run: |
-        # ERSETZE HIER NUR DEN BUCHSTABENSALAT MIT DEINEM ZROK-TOKEN!
-        .\zrok.exe enable IEm7HR72lAH7
-
-    # 4. Den RDP-Tunnel öffentlich machen
-    - name: 4. RDP Tunnel starten
-      run: |
-        # Startet den TCP-Tunnel für Port 3389 im Hintergrund
-        Start-Process .\zrok.exe -ArgumentList "share public localhost:3389 --backend-mode tcp" -RedirectStandardOutput "zrok.log" -WindowStyle Hidden
+        # HIER STEHT JETZT @a.pinggy.io STATT @free.pinggy.io – DAS SCHALTET REINES TCP FREI!
+        Start-Process ssh -ArgumentList "-o StrictHostKeyChecking=no -o ServerAliveInterval=30 -p 443 -R 0:localhost:3389 BrrtAggU59V@a.pinggy.io" -RedirectStandardOutput "pinggy.log" -WindowStyle Hidden
         Start-Sleep -Seconds 15
 
-    # 5. Die Adresse für deine Microsoft RDP App anzeigen
-    - name: 5. Deine Verbindungsdaten anzeigen
+    # 4. Die echte Adresse für dein Tablet anzeigen
+    - name: 4. Verbindungsdaten ausgeben
       run: |
         Write-Host "===================================================="
-        Write-Host "DEINE REINE RDP-ADRESSE FÜR DAS TABLET:"
+        Write-Host "DEIN WINDOWS SERVER IST BEREIT!"
         Start-Sleep -Seconds 2
-        
-        if (Test-Path "zrok.log") {
-            $log = Get-Content zrok.log
-            $tcp_line = $log | Select-String -Pattern "tcp://"
-            if ($tcp_line) {
-                $clean_url = ($tcp_line -split "tcp://")[1] -split " " | Select-Object -First 1
-                Write-Host "Trage diese Adresse in deine Microsoft RDP App ein:"
-                Write-Host "$clean_url"
-            } else {
-                Write-Host "Zrok läuft, aber Adresse noch nicht im Log. Zeige rohes Log:"
-                $log
-            }
-        } else {
-            Write-Host "Zrok Log-Datei wurde nicht erstellt."
-        }
+        Get-Content pinggy.log
         Write-Host "===================================================="
 
-    # 6. Administrator-Passwort für Windows setzen
-    - name: 6. Windows Admin-Passwort setzen
+    # 5. Windows-Passwort setzen
+    - name: 5. Windows Admin-Passwort setzen
       run: |
         net user runneradmin "MeinSicheresPasswort123!"
 
-    # 7. Server online halten
-    - name: 7. Server aktiv halten Loop
+    # 6. Server aktiv halten Loop
+    - name: 6. Server aktiv halten Loop
       run: |
         $count = 0
         while ($count -lt 360) {
