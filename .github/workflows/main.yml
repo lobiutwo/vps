@@ -1,4 +1,4 @@
-name: Windows VPS mit Pinggy Token
+name: Windows VPS Pinggy Token
 
 on:
   workflow_dispatch:
@@ -9,42 +9,33 @@ jobs:
     timeout-minutes: 360
 
     steps:
-    # 1. SSH-Key generieren
-    - name: 1. SSH Schlüssel generieren
+    - name: 1. SSH Verzeichnis und Key erstellen
       run: |
         if (!(Test-Path "$env:USERPROFILE\.ssh")) { New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\.ssh" }
         ssh-keygen -t rsa -b 2048 -f "$env:USERPROFILE\.ssh\id_rsa" -N ""
 
-    # 2. Windows Remotedesktop aktivieren
-    - name: 2. RDP auf Windows aktivieren
+    - name: 2. RDP aktivieren
       run: |
         Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
         Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
         New-NetFirewallRule -DisplayName "RDP-Inbound" -Direction Inbound -Action Allow -Protocol TCP -LocalPort 3389
 
-    # 3. Deinen Pinggy-Tunnel mit Token starten
-    - name: 3. Pinggy Tunnel mit Token starten
+    - name: 3. Pinggy Tunnel starten
       run: |
-        # Hier ist dein Token eingebaut, der direkt auf den RDP Port 3389 leitet
         Start-Process ssh -ArgumentList "-o StrictHostKeyChecking=no -o ServerAliveInterval=30 -p 443 -R 0:localhost:3389 BrrtAggU59V@free.pinggy.io" -RedirectStandardOutput "pinggy.log" -WindowStyle Hidden
         Start-Sleep -Seconds 15
 
-    # 4. Die Verbindungsdaten anzeigen
-    - name: 4. Deine Verbindungsdaten anzeigen
+    - name: 4. Verbindungsdaten ausgeben
       run: |
         Write-Host "===================================================="
-        Write-Host "DEIN TUNNEL WIRD AUSGELESEN..."
-        Start-Sleep -Seconds 2
         Get-Content pinggy.log
         Write-Host "===================================================="
 
-    # 5. Admin-Passwort setzen
-    - name: 5. Windows Admin-Passwort setzen
+    - name: 5. Admin-Passwort setzen
       run: |
         net user runneradmin "MeinSicheresPasswort123!"
 
-    # 6. Loop
-    - name: 6. Server aktiv halten (Loop)
+    - name: 6. Server aktiv halten Loop
       run: |
         $count = 0
         while ($count -lt 360) {
