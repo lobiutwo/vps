@@ -1,31 +1,30 @@
 name: Windows VPS mit ngrok (Zuerst ngrok)
 
 on:
-  workflow_dispatch: # Erlaubt den manuellen Start per Klick auf GitHub
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: windows-latest
-    timeout-minutes: 360 # Hält den Server bis zu 6 Stunden online
+    timeout-minutes: 360
 
     steps:
-    # 1. ngrok herunterladen und entpacken (Direkt als Erstes!)
+    # 1. ngrok stabil über Chocolatey installieren (Keine kaputten Links mehr!)
     - name: 1. ngrok herunterladen und installieren
       run: |
-        Invoke-WebRequest -Uri "https://bin.equinox.io/c/b3Ut3qqAI52/ngrok-v3-stable-windows-amd64.zip" -OutFile "ngrok.zip"
-        Expand-Archive -Path "ngrok.zip" -DestinationPath "."
+        choco install ngrok -y
         
     # 2. ngrok authentifizieren mit deinem GitHub Secret Token
     - name: 2. ngrok Token konfigurieren
       env:
         NGROK_AUTH: ${{ secrets.NGROK_AUTHTOKEN }}
       run: |
-        .\ngrok.exe config add-authtoken "$env:NGROK_AUTH"
+        ngrok config add-authtoken "$env:NGROK_AUTH"
 
     # 3. ngrok Tunnel für Windows-Remotedesktop (RDP) im Hintergrund starten
     - name: 3. ngrok Tunnel im Hintergrund starten
       run: |
-        Start-Process .\ngrok.exe -ArgumentList "tcp 3389 --log=stdout" -WindowStyle Hidden
+        Start-Process ngrok -ArgumentList "tcp 3389 --log=stdout" -WindowStyle Hidden
         Start-Sleep -Seconds 10
 
     # 4. Die Verbindungsdaten aus der ngrok-API auslesen und im Log posten
