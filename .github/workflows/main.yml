@@ -1,4 +1,4 @@
-name: Windows VPS Pinggy RDP-Port Fix
+name: Windows VPS mit Ngrok RDP
 
 on:
   workflow_dispatch:
@@ -9,53 +9,56 @@ jobs:
     timeout-minutes: 360
 
     steps:
-    # 1. SSH-Key erstellen
-    - name: 1. SSH Verzeichnis und Key erstellen
-      run: |
-        if (!(Test-Path "$env:USERPROFILE\.ssh")) { New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\.ssh" }
-        ssh-keygen -t rsa -b 2048 -f "$env:USERPROFILE\.ssh\id_rsa" -N ""
-
-    # 2. RDP und Firewall in Windows aktivieren
-    - name: 2. RDP aktivieren
+    # 1. RDP auf dem Windows-Server aktivieren & Firewall öffnen
+    - name: 1. RDP aktivieren
       run: |
         Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
         Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
         New-NetFirewallRule -DisplayName "RDP-Inbound" -Direction Inbound -Action Allow -Protocol TCP -LocalPort 3389
 
-    # 3. Pinggy mit dem KORREKTEN Port 3389 starten
-    - name: 3. Pinggy RDP Tunnel starten
+    # 2. Ngrok herunterladen und entpacken
+    - name: 2. Ngrok installieren
       run: |
-        # Hier ist jetzt Port 3389 statt 80 eingetragen!
-        Start-Process ssh -ArgumentList "-p 443 -R 0:localhost:3389 -o StrictHostKeyChecking=no -o ServerAliveInterval=30 BrrtAggU59V@free.pinggy.io" -RedirectStandardOutput "pinggy.log" -WindowStyle Hidden
+        Invoke-WebRequest -Uri "https://bin.equinox.io/c/bNy7a2qHSTp/ngrok-v3-stable-windows-amd64.zip" -OutFile "ngrok.zip"
+        Expand-Archive -Path "ngrok.zip" -DestinationPath .
+
+    # 3. Deinen Ngrok Token aktivieren
+    - name: 3. Ngrok authentifizieren
+      run: |
+        # ERSETZE DIE PUNKTE HIER MIT DEINEM ECHTEN TOKEN VON DER WEBSITE!
+        .\ngrok.exe config add-authtoken 3F6f3XbpLZcoMBVsRds725oizQm_6FehQUjtEgSJ1fV3PA6Me
+
+    # 4. Den echten TCP-Tunnel auf Port 3389 starten
+    - name: 4. RDP Tunnel starten
+      run: |
+        Start-Process .\ngrok.exe -ArgumentList "tcp 3389" -RedirectStandardOutput "ngrok.log" -WindowStyle Hidden
         Start-Sleep -Seconds 15
 
-    # 4. Die echten TCP-Verbindungsdaten für das Tablet anzeigen
-    - name: 4. Verbindungsdaten ausgeben
+    # 5. Die Adresse für dein Tablet auslesen
+    - name: 5. Deine Verbindungsdaten anzeigen
       run: |
         Write-Host "===================================================="
-        Write-Host "DEIN TUNNEL IST BEREIT!"
-        Start-Sleep -Seconds 2
+        Write-Host "DEINE REINE RDP-ADRESSE:"
         
-        $log = Get-Content pinggy.log
-        # Sucht nach der zugewiesenen Portnummer von Pinggy
-        $port_line = $log | Select-String -Pattern "Allocated port"
-        if ($port_line) {
-            $port = ($port_line -split "Allocated port ")[1] -split " " | Select-Object -First 1
-            Write-Host "Trage diese Adresse in deine Microsoft RDP App ein:"
-            Write-Host "a.pinggy.io:$port"
+        # Holt sich die offizielle TCP-Adresse von Ngrok aus dem Web-Interface
+        $ngrok_url = (Invoke-WebRequest -Uri "http://127.0.0.1:4040/api/tunnels" -UseBasicParsing | ConvertFrom-Json).tunnels.public_url
+        if ($ngrok_url) {
+            # Entfernt das "tcp://" am Anfang, damit die App es versteht
+            $clean_url = $ngrok_url -replace "tcp://", ""
+            Write-Host "Kopiere diese Adresse in die Microsoft RDP App:"
+            Write-Host "$clean_url"
         } else {
-            Write-Host "Zeige rohes Log zur manuellen Suche:"
-            $log
+            Write-Host "Tunnel startet noch oder Token fehlt. Warte kurz..."
         }
         Write-Host "===================================================="
 
-    # 5. Windows Admin-Passwort setzen
-    - name: 5. Windows Admin-Passwort setzen
+    # 6. Administrator-Passwort für Windows setzen
+    - name: 6. Windows Admin-Passwort setzen
       run: |
         net user runneradmin "MeinSicheresPasswort123!"
 
-    # 6. Server aktiv halten
-    - name: 6. Server aktiv halten Loop
+    # 7. Server online halten
+    - name: 7. Server aktiv halten Loop
       run: |
         $count = 0
         while ($count -lt 360) {
