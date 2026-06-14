@@ -1,4 +1,4 @@
-name: Windows VPS Pinggy Token
+name: Windows VPS Pinggy TCP Fix
 
 on:
   workflow_dispatch:
@@ -20,9 +20,10 @@ jobs:
         Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
         New-NetFirewallRule -DisplayName "RDP-Inbound" -Direction Inbound -Action Allow -Protocol TCP -LocalPort 3389
 
-    - name: 3. Pinggy Tunnel starten
+    - name: 3. Pinggy TCP Tunnel starten
       run: |
-        Start-Process ssh -ArgumentList "-o StrictHostKeyChecking=no -o ServerAliveInterval=30 -p 443 -R 0:localhost:3389 BrrtAggU59V@free.pinggy.io" -RedirectStandardOutput "pinggy.log" -WindowStyle Hidden
+        # ACHTUNG: Das "tcp:" vor deinem Token schaltet den RDP-Modus frei!
+        Start-Process ssh -ArgumentList "-o StrictHostKeyChecking=no -o ServerAliveInterval=30 -p 443 -R 0:localhost:3389 tcp:BrrtAggU59V@free.pinggy.io" -RedirectStandardOutput "pinggy.log" -WindowStyle Hidden
         Start-Sleep -Seconds 15
 
     - name: 4. Verbindungsdaten ausgeben
