@@ -1,4 +1,4 @@
-name: Windows VPS mit Ngrok RDP (Fixed Download)
+name: Windows VPS mit Zrok RDP (Garantierter Fix)
 
 on:
   workflow_dispatch:
@@ -16,38 +16,40 @@ jobs:
         Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
         New-NetFirewallRule -DisplayName "RDP-Inbound" -Direction Inbound -Action Allow -Protocol TCP -LocalPort 3389
 
-    # 2. Ngrok über Chocolatey installieren (Garantierter Fix!)
-    - name: 2. Ngrok installieren
+    # 2. Zrok automatisch installieren
+    - name: 2. Zrok installieren
       run: |
-        choco install ngrok -y
+        choco install zrok -y
 
-    # 3. Deinen Ngrok Token aktivieren
-    - name: 3. Ngrok authentifizieren
+    # 3. Zrok mit deinem Token aktivieren
+    - name: 3. Zrok authentifizieren
       run: |
-        # ERSETZE DIE PUNKTE HIER MIT DEINEM ECHTEN TOKEN VON DER WEBSITE!
-        ngrok config add-authtoken 3F6f3XbpLZcoMBVsRds725oizQm_6FehQUjtEgSJ1fV3PA6Me
+        # ERSETZE HIER NUR DEN BUCHSTABENSALAT MIT DEINEM ZROK-TOKEN!
+        zrok enable IEm7HR72lAH7
 
-    # 4. Den echten TCP-Tunnel auf Port 3389 starten
+    # 4. Den RDP-Tunnel öffentlich machen
     - name: 4. RDP Tunnel starten
       run: |
-        Start-Process ngrok -ArgumentList "tcp 3389" -WindowStyle Hidden
+        # Startet den TCP-Tunnel für Port 3389 im Hintergrund
+        Start-Process zrok -ArgumentList "share public localhost:3389 --backend-mode tcp" -RedirectStandardOutput "zrok.log" -WindowStyle Hidden
         Start-Sleep -Seconds 15
 
-    # 5. Die Adresse für dein Tablet auslesen
+    # 5. Die Adresse für deine Microsoft RDP App anzeigen
     - name: 5. Deine Verbindungsdaten anzeigen
       run: |
         Write-Host "===================================================="
-        Write-Host "DEINE REINE RDP-ADRESSE:"
+        Write-Host "DEINE REINE RDP-ADRESSE FÜR DAS TABLET:"
+        Start-Sleep -Seconds 2
         
-        # Holt sich die offizielle TCP-Adresse von Ngrok aus dem Web-Interface
-        $ngrok_url = (Invoke-WebRequest -Uri "http://127.0.0.1:4040/api/tunnels" -UseBasicParsing | ConvertFrom-Json).tunnels.public_url
-        if ($ngrok_url) {
-            # Entfernt das "tcp://" am Anfang, damit die App es versteht
-            $clean_url = $ngrok_url -replace "tcp://", ""
-            Write-Host "Kopiere diese Adresse in die Microsoft RDP App:"
+        $log = Get-Content zrok.log
+        $tcp_line = $log | Select-String -Pattern "tcp://"
+        if ($tcp_line) {
+            $clean_url = ($tcp_line -split "tcp://")[1] -split " " | Select-Object -First 1
+            Write-Host "Trage diese Adresse in deine Microsoft RDP App ein:"
             Write-Host "$clean_url"
         } else {
-            Write-Host "Tunnel startet noch oder Token fehlt. Warte kurz..."
+            Write-Host "Lese rohes Log zur Sicherheit aus:"
+            $log
         }
         Write-Host "===================================================="
 
