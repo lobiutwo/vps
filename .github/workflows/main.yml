@@ -9,17 +9,19 @@ jobs:
     timeout-minutes: 360
 
     steps:
-    # 1. SSH-Key generieren (Pinggy braucht das zur Authentifizierung)
+    # 1. Verzeichnis erstellen und SSH-Key generieren
     - name: 1. SSH Schlüssel generieren
       run: |
+        # Erstellt den .ssh Ordner, falls er noch nicht existiert
+        if (!(Test-Path "$env:USERPROFILE\.ssh")) { New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\.ssh" }
+        # Generiert den Schlüssel ohne Rückfragen
         ssh-keygen -t rsa -b 2048 -f "$env:USERPROFILE\.ssh\id_rsa" -N ""
 
     # 2. Den Pinggy-Tunnel im Hintergrund starten
     - name: 2. Pinggy RDP-Tunnel starten
       run: |
-        # Startet den Tunnel für Port 3389 (Windows RDP) über Pinggy und loggt in eine Datei
         Start-Process ssh -ArgumentList "-o StrictHostKeyChecking=no -p 443 -R 0:localhost:3389 rdp@a.pinggy.io" -RedirectStandardOutput "pinggy.log" -WindowStyle Hidden
-        Start-Sleep -Seconds 10
+        Start-Sleep -Seconds 15
 
     # 3. Die Verbindungsdaten direkt aus dem Log anzeigen
     - name: 3. Deine Verbindungsdaten anzeigen
@@ -28,16 +30,14 @@ jobs:
         Write-Host "DEIN TUNNEL WIRD AUSGELESEN..."
         Start-Sleep -Seconds 5
         
-        # Holt sich die öffentliche Adresse von Pinggy aus der Logdatei
         $pinggy_line = Get-Content pinggy.log | Select-String -Pattern "tcp://"
         if ($pinggy_line) {
-            # Bereinigt den Text für die RDP-Adresse
             $clean_url = ($pinggy_line -split "tcp://")[1] -split " " | Select-Object -First 1
             Write-Host "DEIN TUNNEL IST BEREIT!"
             Write-Host "Verbinde dich ueber RDP mit dieser Adresse:"
             Write-Host "$clean_url"
         } else {
-            Write-Host "Tunnel-Adresse konnte nicht ausgelesen werden. Rohes Log:"
+            Write-Host "Tunnel-Adresse konnte nicht ausgelesen werden. Rohes Log zur Fehlersuche:"
             Get-Content pinggy.log
         }
         Write-Host "===================================================="
