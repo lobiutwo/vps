@@ -1,4 +1,4 @@
-name: Windows VPS mit Ngrok RDP
+name: Windows VPS mit Ngrok RDP (Fixed Download)
 
 on:
   workflow_dispatch:
@@ -16,22 +16,21 @@ jobs:
         Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
         New-NetFirewallRule -DisplayName "RDP-Inbound" -Direction Inbound -Action Allow -Protocol TCP -LocalPort 3389
 
-    # 2. Ngrok herunterladen und entpacken
+    # 2. Ngrok über Chocolatey installieren (Garantierter Fix!)
     - name: 2. Ngrok installieren
       run: |
-        Invoke-WebRequest -Uri "https://bin.equinox.io/c/bNy7a2qHSTp/ngrok-v3-stable-windows-amd64.zip" -OutFile "ngrok.zip"
-        Expand-Archive -Path "ngrok.zip" -DestinationPath .
+        choco install ngrok -y
 
     # 3. Deinen Ngrok Token aktivieren
     - name: 3. Ngrok authentifizieren
       run: |
         # ERSETZE DIE PUNKTE HIER MIT DEINEM ECHTEN TOKEN VON DER WEBSITE!
-        .\ngrok.exe config add-authtoken 3F6f3XbpLZcoMBVsRds725oizQm_6FehQUjtEgSJ1fV3PA6Me
+        ngrok config add-authtoken 3F6f3XbpLZcoMBVsRds725oizQm_6FehQUjtEgSJ1fV3PA6Me
 
     # 4. Den echten TCP-Tunnel auf Port 3389 starten
     - name: 4. RDP Tunnel starten
       run: |
-        Start-Process .\ngrok.exe -ArgumentList "tcp 3389" -RedirectStandardOutput "ngrok.log" -WindowStyle Hidden
+        Start-Process ngrok -ArgumentList "tcp 3389" -WindowStyle Hidden
         Start-Sleep -Seconds 15
 
     # 5. Die Adresse für dein Tablet auslesen
