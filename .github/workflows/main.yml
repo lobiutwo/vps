@@ -9,28 +9,39 @@ jobs:
     timeout-minutes: 360
 
     steps:
-    # 1. ngrok stabil über Chocolatey installieren (Keine kaputten Links mehr!)
+    # 1. ngrok über Chocolatey installieren
     - name: 1. ngrok herunterladen und installieren
       run: |
         choco install ngrok -y
         
-    # 2. ngrok authentifizieren mit deinem GitHub Secret Token
+    # 2. ngrok authentifizieren
     - name: 2. ngrok Token konfigurieren
       env:
         NGROK_AUTH: ${{ secrets.NGROK_AUTHTOKEN }}
       run: |
         ngrok config add-authtoken "$env:NGROK_AUTH"
 
-    # 3. ngrok Tunnel für Windows-Remotedesktop (RDP) im Hintergrund starten
+    # 3. Eine feste Konfiguration schreiben und den Tunnel starten
     - name: 3. ngrok Tunnel im Hintergrund starten
       run: |
-        Start-Process ngrok -ArgumentList "tcp 3389 --log=stdout" -WindowStyle Hidden
-        Start-Sleep -Seconds 10
+        # Startet den RDP-Tunnel sauber im Hintergrund
+        Start-Process ngrok -ArgumentList "tcp 3389" -WindowStyle Hidden
+        # Wir geben ngrok jetzt 30 Sekunden Zeit, um die API im Hintergrund komplett zu starten!
+        Start-Sleep -Seconds 30
 
-    # 4. Die Verbindungsdaten aus der ngrok-API auslesen und im Log posten
+    # 4. Die Verbindungsdaten abfragen (Jetzt mit Sicherheitsnetz)
     - name: 4. Deine Verbindungsdaten anzeigen
       run: |
-        $ngrok_url = (Invoke-WebRequest -Uri "http://127.0.0.1:4040/api/tunnels" -UseBasicParsing | ConvertFrom-Json).tunnels.public_url
+        # Falls ngrok immer noch lädt, versuchen wir es bis zu 3 Mal im Abstand von 5 Sekunden
+        for ($i=0; $i -lt 3; $i++) {
+          try {
+            $ngrok_url = (Invoke-WebRequest -Uri "http://127.0.0.1:4040/api/tunnels" -UseBasicParsing -TimeoutSec 10 | ConvertFrom-Json).tunnels.public_url
+            if ($ngrok_url) { break }
+          } catch {
+            Start-Sleep -Seconds 5
+          }
+        }
+        
         Write-Host "===================================================="
         Write-Host "DEIN TUNNEL IST BEREIT!"
         Write-Host "Verbinde dich ueber RDP mit dieser Adresse:"
@@ -43,7 +54,7 @@ jobs:
         net user runneradmin "MeinSicheresPasswort123!"
         cmd /c WMIC USERACCOUNT WHERE "Name='runneradmin'" SET PasswordExpires=FALSE
 
-    # 6. Endlosschleife, damit GitHub die Maschine nicht abschaltet
+    # 6. Endlosschleife
     - name: 6. Server aktiv halten (Loop)
       run: |
         Write-Host "Der Server läuft jetzt. Du kannst dich verbinden!"
