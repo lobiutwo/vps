@@ -1,0 +1,56 @@
+name: Windows VPS mit ngrok (Zuerst ngrok)
+
+on:
+  workflow_dispatch: # Erlaubt den manuellen Start per Klick auf GitHub
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 360 # Hält den Server bis zu 6 Stunden online
+
+    steps:
+    # 1. ngrok herunterladen und entpacken (Direkt als Erstes!)
+    - name: 1. ngrok herunterladen und installieren
+      run: |
+        Invoke-WebRequest -Uri "https://bin.equinox.io/c/b3Ut3qqAI52/ngrok-v3-stable-windows-amd64.zip" -OutFile "ngrok.zip"
+        Expand-Archive -Path "ngrok.zip" -DestinationPath "."
+        
+    # 2. ngrok authentifizieren mit deinem GitHub Secret Token
+    - name: 2. ngrok Token konfigurieren
+      env:
+        NGROK_AUTH: ${{ secrets.NGROK_AUTHTOKEN }}
+      run: |
+        .\ngrok.exe config add-authtoken "$env:NGROK_AUTH"
+
+    # 3. ngrok Tunnel für Windows-Remotedesktop (RDP) im Hintergrund starten
+    - name: 3. ngrok Tunnel im Hintergrund starten
+      run: |
+        Start-Process .\ngrok.exe -ArgumentList "tcp 3389 --log=stdout" -WindowStyle Hidden
+        Start-Sleep -Seconds 10
+
+    # 4. Die Verbindungsdaten aus der ngrok-API auslesen und im Log posten
+    - name: 4. Deine Verbindungsdaten anzeigen
+      run: |
+        $ngrok_url = (Invoke-WebRequest -Uri "http://127.0.0.1:4040/api/tunnels" -UseBasicParsing | ConvertFrom-Json).tunnels.public_url
+        Write-Host "===================================================="
+        Write-Host "DEIN TUNNEL IST BEREIT!"
+        Write-Host "Verbinde dich ueber RDP mit dieser Adresse:"
+        Write-Host "$ngrok_url"
+        Write-Host "===================================================="
+
+    # 5. Admin-Passwort für den Windows-Server festlegen
+    - name: 5. Windows Admin-Passwort setzen
+      run: |
+        net user runneradmin "MeinSicheresPasswort123!"
+        cmd /c WMIC USERACCOUNT WHERE "Name='runneradmin'" SET PasswordExpires=FALSE
+
+    # 6. Endlosschleife, damit GitHub die Maschine nicht abschaltet
+    - name: 6. Server aktiv halten (Loop)
+      run: |
+        Write-Host "Der Server läuft jetzt. Du kannst dich verbinden!"
+        $count = 0
+        while ($count -lt 360) {
+            Start-Sleep -Seconds 60
+            $count++
+            Write-Host "Server läuft seit $count Minuten."
+        }
