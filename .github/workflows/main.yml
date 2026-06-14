@@ -1,4 +1,4 @@
-name: Windows VPS Pinggy TCP Fix
+name: Windows VPS Pinggy RDP-Port Fix
 
 on:
   workflow_dispatch:
@@ -9,33 +9,52 @@ jobs:
     timeout-minutes: 360
 
     steps:
+    # 1. SSH-Key erstellen
     - name: 1. SSH Verzeichnis und Key erstellen
       run: |
         if (!(Test-Path "$env:USERPROFILE\.ssh")) { New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\.ssh" }
         ssh-keygen -t rsa -b 2048 -f "$env:USERPROFILE\.ssh\id_rsa" -N ""
 
+    # 2. RDP und Firewall in Windows aktivieren
     - name: 2. RDP aktivieren
       run: |
         Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
         Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
         New-NetFirewallRule -DisplayName "RDP-Inbound" -Direction Inbound -Action Allow -Protocol TCP -LocalPort 3389
 
-    - name: 3. Pinggy TCP Tunnel starten
+    # 3. Pinggy mit dem KORREKTEN Port 3389 starten
+    - name: 3. Pinggy RDP Tunnel starten
       run: |
-        # ACHTUNG: Das "tcp:" vor deinem Token schaltet den RDP-Modus frei!
-        Start-Process ssh -ArgumentList "-o StrictHostKeyChecking=no -o ServerAliveInterval=30 -p 443 -R 0:localhost:3389 tcp:BrrtAggU59V@free.pinggy.io" -RedirectStandardOutput "pinggy.log" -WindowStyle Hidden
+        # Hier ist jetzt Port 3389 statt 80 eingetragen!
+        Start-Process ssh -ArgumentList "-p 443 -R 0:localhost:3389 -o StrictHostKeyChecking=no -o ServerAliveInterval=30 BrrtAggU59V@free.pinggy.io" -RedirectStandardOutput "pinggy.log" -WindowStyle Hidden
         Start-Sleep -Seconds 15
 
+    # 4. Die echten TCP-Verbindungsdaten für das Tablet anzeigen
     - name: 4. Verbindungsdaten ausgeben
       run: |
         Write-Host "===================================================="
-        Get-Content pinggy.log
+        Write-Host "DEIN TUNNEL IST BEREIT!"
+        Start-Sleep -Seconds 2
+        
+        $log = Get-Content pinggy.log
+        # Sucht nach der zugewiesenen Portnummer von Pinggy
+        $port_line = $log | Select-String -Pattern "Allocated port"
+        if ($port_line) {
+            $port = ($port_line -split "Allocated port ")[1] -split " " | Select-Object -First 1
+            Write-Host "Trage diese Adresse in deine Microsoft RDP App ein:"
+            Write-Host "a.pinggy.io:$port"
+        } else {
+            Write-Host "Zeige rohes Log zur manuellen Suche:"
+            $log
+        }
         Write-Host "===================================================="
 
-    - name: 5. Admin-Passwort setzen
+    # 5. Windows Admin-Passwort setzen
+    - name: 5. Windows Admin-Passwort setzen
       run: |
         net user runneradmin "MeinSicheresPasswort123!"
 
+    # 6. Server aktiv halten
     - name: 6. Server aktiv halten Loop
       run: |
         $count = 0
