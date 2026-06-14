@@ -1,54 +1,59 @@
-name: Windows VPS mit Pinggy (Keine Kreditkarte noetig)
+name: Windows VPS mit Pinggy (Bulletproof)
 
 on:
-  workflow_dispatch:
+  workflow_dispatch: # Erlaubt den manuellen Start per Klick auf GitHub
 
 jobs:
   build:
     runs-on: windows-latest
-    timeout-minutes: 360
+    timeout-minutes: 360 # Hält die VPS bis zu 6 Stunden aktiv
 
     steps:
     # 1. Verzeichnis erstellen und SSH-Key generieren
     - name: 1. SSH Schlüssel generieren
       run: |
-        # Erstellt den .ssh Ordner, falls er noch nicht existiert
         if (!(Test-Path "$env:USERPROFILE\.ssh")) { New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\.ssh" }
-        # Generiert den Schlüssel ohne Rückfragen
         ssh-keygen -t rsa -b 2048 -f "$env:USERPROFILE\.ssh\id_rsa" -N ""
 
-    # 2. Den Pinggy-Tunnel im Hintergrund starten
-    - name: 2. Pinggy RDP-Tunnel starten
+    # 2. Windows Remotedesktop aktivieren und Firewall öffnen
+    - name: 2. RDP auf Windows aktivieren
       run: |
-        Start-Process ssh -ArgumentList "-o StrictHostKeyChecking=no -p 443 -R 0:localhost:3389 rdp@a.pinggy.io" -RedirectStandardOutput "pinggy.log" -WindowStyle Hidden
+        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
+        Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+
+    # 3. Den Pinggy-Tunnel über Port 443 starten
+    - name: 3. Pinggy RDP-Tunnel starten
+      run: |
+        # Das .443 am Ende zwingt den Tunnel über den sicheren HTTPS-Port
+        Start-Process ssh -ArgumentList "-o StrictHostKeyChecking=no -p 443 -R 0:localhost:3389 rdp@a.pinggy.io.443" -RedirectStandardOutput "pinggy.log" -WindowStyle Hidden
         Start-Sleep -Seconds 15
 
-    # 3. Die Verbindungsdaten direkt aus dem Log anzeigen
-    - name: 3. Deine Verbindungsdaten anzeigen
+    # 4. Die Verbindungsdaten direkt aus dem Log anzeigen
+    - name: 4. Deine Verbindungsdaten anzeigen
       run: |
         Write-Host "===================================================="
-        Write-Host "DEIN TUNNEL WIRD AUSGELESEN..."
-        Start-Sleep -Seconds 5
+        Write-Host "DEIN TUNNEL IST BEREIT!"
+        Start-Sleep -Seconds 2
         
-        $pinggy_line = Get-Content pinggy.log | Select-String -Pattern "tcp://"
-        if ($pinggy_line) {
-            $clean_url = ($pinggy_line -split "tcp://")[1] -split " " | Select-Object -First 1
-            Write-Host "DEIN TUNNEL IST BEREIT!"
-            Write-Host "Verbinde dich ueber RDP mit dieser Adresse:"
-            Write-Host "$clean_url"
+        $log = Get-Content pinggy.log
+        $port_line = $log | Select-String -Pattern "Allocated port"
+        if ($port_line) {
+            $port = ($port_line -split "Allocated port ")[1] -split " " | Select-Object -First 1
+            Write-Host "Trage diese Adresse in die Microsoft RDP App ein:"
+            Write-Host "a.pinggy.io.443:$port"
         } else {
-            Write-Host "Tunnel-Adresse konnte nicht ausgelesen werden. Rohes Log zur Fehlersuche:"
-            Get-Content pinggy.log
+            Write-Host "Zeige rohes Log zur manuellen Suche:"
+            $log
         }
         Write-Host "===================================================="
 
-    # 4. Admin-Passwort für den Windows-Server festlegen
-    - name: 4. Windows Admin-Passwort setzen
+    # 5. Admin-Passwort für den Windows-Server festlegen
+    - name: 5. Windows Admin-Passwort setzen
       run: |
         net user runneradmin "MeinSicheresPasswort123!"
 
-    # 5. Endlosschleife hält den Server online
-    - name: 5. Server aktiv halten (Loop)
+    # 6. Endlosschleife hält den Server online
+    - name: 6. Server aktiv halten (Loop)
       run: |
         Write-Host "Der Server läuft jetzt. Du kannst dich verbinden!"
         $count = 0
